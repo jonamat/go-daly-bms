@@ -2,29 +2,49 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"time"
 
-	dalybms "github.com/jonamat/go-daly-bms/pkg/bms"
+	bms "github.com/jonamat/go-daly-bms"
 )
 
+const SAMPLE_INTERVAL = 5
+const BMS_PORT = "/dev/ttyUSB0"
+
+var bmsClient *bms.DalyBMSIstance
+
 func main() {
-	bms := dalybms.NewDalyBMS(3, 4) // 3 retries, address=4 for RS485/USB
-	if err := bms.Connect("/dev/ttyUSB0"); err != nil {
-		log.Fatalf("failed to connect: %v", err)
-	}
-	defer bms.Disconnect()
+	fmt.Println("Starting...")
 
-	status, err := bms.GetStatus()
-	if err != nil {
-		log.Printf("Error reading status: %v", err)
-	} else {
-		fmt.Printf("Status: %+v\n", status)
-	}
+	for {
+		if bmsClient != nil {
+			err := bmsClient.Disconnect()
+			if err != nil {
+				fmt.Println("Error disconnecting from BMS: ", err)
+			}
+		}
+		bmsClient = bms.DalyBMS()
+		err := bmsClient.Connect(BMS_PORT)
+		if err != nil {
+			fmt.Printf("Error connecting to BMS: %v", err)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		defer bmsClient.Disconnect()
 
-	socData, err := bms.GetSOC()
-	if err != nil {
-		log.Printf("Error reading SOC: %v", err)
-	} else {
-		fmt.Printf("SOC Data: %+v\n", socData)
+		for {
+			data, err := bmsClient.GetAllData()
+			if err != nil {
+				fmt.Println("Error getting data: ", err)
+				break
+			} else {
+				fmt.Println("SOC: ", data)
+			}
+
+			// delay before next sample
+			time.Sleep(SAMPLE_INTERVAL * time.Second)
+		}
+
+		// delay before reconnecting
+		time.Sleep(1 * time.Second)
 	}
 }

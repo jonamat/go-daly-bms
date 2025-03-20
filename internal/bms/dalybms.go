@@ -7,42 +7,23 @@ import (
 	"github.com/tarm/serial"
 )
 
-// BMS status query
-type StatusData struct {
-	NumberOfCells              int
-	NumberOfTemperatureSensors int
-	IsChargerRunning           bool
-	IsLoadRunning              bool
-	States                     map[string]bool
-	CycleCount                 int16
-}
-
 // BMS serial connection
-type DalyBMS struct {
+type DalyBMSIstance struct {
 	serialPort     *serial.Port
 	requestRetries int
-	address        int
 	latestStatus   *StatusData // cached from GetStatus()
+	address        int
 }
 
-// Address = 4 for USB (RS485), or 8 for Bluetooth, per Daly docs.
-func NewDalyBMS(retryCount int, address int) *DalyBMS {
-	if retryCount < 1 {
-		retryCount = 3
-	}
-	// Default to 4 if not specified.
-	if address == 0 {
-		address = 4
-	}
-
-	return &DalyBMS{
-		requestRetries: retryCount,
-		address:        address,
+func DalyBMS() *DalyBMSIstance {
+	return &DalyBMSIstance{
+		requestRetries: 3, // default
+		address:        4, // default for RS485
 	}
 }
 
 // Connect opens the serial port. Eg "/dev/ttyUSB0"
-func (bms *DalyBMS) Connect(serialDevicePath string) error {
+func (bms *DalyBMSIstance) Connect(serialDevicePath string) error {
 	portConfig := &serial.Config{
 		Name:        serialDevicePath,
 		Baud:        9600,
@@ -65,7 +46,7 @@ func (bms *DalyBMS) Connect(serialDevicePath string) error {
 }
 
 // Close serial port
-func (bms *DalyBMS) Disconnect() error {
+func (bms *DalyBMSIstance) Disconnect() error {
 	if bms.serialPort != nil {
 		err := bms.serialPort.Close()
 		bms.serialPort = nil

@@ -1,6 +1,13 @@
 # go-daly-bms
 
-(partial) Go porting of [python-daly-bms](https://github.com/dreadnought/python-daly-bms)
+Go porting of [python-daly-bms](https://github.com/dreadnought/python-daly-bms) library to interact with Daly BMS.
+Tested on 
+
+## Installation
+
+```bash
+go get github.com/jonamat/go-daly-bms
+```
 
 ## Usage
 
@@ -9,31 +16,34 @@ package main
 
 import (
 	"fmt"
-	"log"
 
-	dalybms "github.com/jonamat/go-daly-bms/pkg/bms"
+	bms "github.com/jonamat/go-daly-bms/pkg/bms"
 )
 
 func main() {
-	bms := dalybms.NewDalyBMS(3, 4) // 3 retries, address=4 for RS485/USB
+	bms := bms.DalyBMS()
 	if err := bms.Connect("/dev/ttyUSB0"); err != nil {
-		log.Fatalf("failed to connect: %v", err)
+		panic(err)
 	}
 	defer bms.Disconnect()
 
-	status, err := bms.GetStatus()
+	statusData, err := bms.GetStatus()
 	if err != nil {
-		log.Printf("Error reading status: %v", err)
-	} else {
-		fmt.Printf("Status: %+v\n", status)
-	}
+		panic(err)
+	} 
+
+	fmt.Printf("Cycles: %+v\n", statusData.CycleCount)
+	
 
 	socData, err := bms.GetSOC()
 	if err != nil {
-		log.Printf("Error reading SOC: %v", err)
-	} else {
-		fmt.Printf("SOC Data: %+v\n", socData)
+		panic(err)
 	}
+	
+	fmt.Printf("SOC Percent: %+v\n", socData.SOCPercent)
 }
-
 ```
+
+## License
+
+MIT

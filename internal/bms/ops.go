@@ -7,8 +7,18 @@ import (
 	"log"
 )
 
+// BMS status query
+type StatusData struct {
+	NumberOfCells              int
+	NumberOfTemperatureSensors int
+	IsChargerRunning           bool
+	IsLoadRunning              bool
+	States                     map[string]bool
+	CycleCount                 int16
+}
+
 // Get BMS status
-func (bms *DalyBMS) GetStatus() (*StatusData, error) {
+func (bms *DalyBMSIstance) GetStatus() (*StatusData, error) {
 	response, err := bms.sendReadRequest("94", "", 1, false)
 	if err != nil {
 		return nil, err
@@ -58,8 +68,14 @@ func (bms *DalyBMS) GetStatus() (*StatusData, error) {
 	return bms.latestStatus, nil
 }
 
+type SOCData struct {
+	TotalVoltage float32
+	Current      float32
+	SOCPercent   float32
+}
+
 // Get State of Charge
-func (bms *DalyBMS) GetSOC() (map[string]float64, error) {
+func (bms *DalyBMSIstance) GetSOC() (*SOCData, error) {
 	response, err := bms.sendReadRequest("90", "", 1, false)
 	if err != nil {
 		return nil, err
@@ -82,15 +98,24 @@ func (bms *DalyBMS) GetSOC() (map[string]float64, error) {
 		return nil, err
 	}
 
-	return map[string]float64{
-		"total_voltage": float64(raw[0]) / 10.0,
-		"current":       float64(raw[2]-30000) / 10.0, // negative => charging
-		"soc_percent":   float64(raw[3]) / 10.0,
-	}, nil
+	socData := &SOCData{
+		TotalVoltage: float32(raw[0]) / 10.0,
+		Current:      float32(raw[2]-30000) / 10.0,
+		SOCPercent:   float32(raw[3]) / 10.0,
+	}
+
+	return socData, nil
+}
+
+type CellVoltageRangeData struct {
+	HighestVoltage float32
+	HighestCell    int8
+	LowestVoltage  float32
+	LowestCell     int8
 }
 
 // Get highest/lowest cell voltages
-func (bms *DalyBMS) GetCellVoltageRange() (map[string]interface{}, error) {
+func (bms *DalyBMSIstance) GetCellVoltageRange() (*CellVoltageRangeData, error) {
 	response, err := bms.sendReadRequest("91", "", 1, false)
 	if err != nil {
 		return nil, err
@@ -119,16 +144,25 @@ func (bms *DalyBMS) GetCellVoltageRange() (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	return map[string]interface{}{
-		"highest_voltage": float64(raw.HighestVoltageRaw) / 1000.0,
-		"highest_cell":    raw.HighestCellID,
-		"lowest_voltage":  float64(raw.LowestVoltageRaw) / 1000.0,
-		"lowest_cell":     raw.LowestCellID,
-	}, nil
+	cellVoltageRangeData := &CellVoltageRangeData{
+		HighestVoltage: float32(raw.HighestVoltageRaw) / 1000.0,
+		HighestCell:    raw.HighestCellID,
+		LowestVoltage:  float32(raw.LowestVoltageRaw) / 1000.0,
+		LowestCell:     raw.LowestCellID,
+	}
+
+	return cellVoltageRangeData, nil
+}
+
+type TemperatureRangeData struct {
+	HighestTemperature float32
+	HighestSensor      int8
+	LowestTemperature  float32
+	LowestSensor       int8
 }
 
 // Get overall highest/lowest temperature info
-func (bms *DalyBMS) GetTemperatureRange() (map[string]interface{}, error) {
+func (bms *DalyBMSIstance) GetTemperatureRange() (*TemperatureRangeData, error) {
 	response, err := bms.sendReadRequest("92", "", 1, false)
 	if err != nil {
 		return nil, err
@@ -157,16 +191,25 @@ func (bms *DalyBMS) GetTemperatureRange() (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	return map[string]interface{}{
-		"highest_temperature": float64(raw.HighestTemperatureRaw) - 40.0,
-		"highest_sensor":      raw.HighestSensor,
-		"lowest_temperature":  float64(raw.LowestTemperatureRaw) - 40.0,
-		"lowest_sensor":       raw.LowestSensor,
-	}, nil
+	temperatureRangeData := &TemperatureRangeData{
+		HighestTemperature: float32(raw.HighestTemperatureRaw) - 40.0,
+		HighestSensor:      raw.HighestSensor,
+		LowestTemperature:  float32(raw.LowestTemperatureRaw) - 40.0,
+		LowestSensor:       raw.LowestSensor,
+	}
+
+	return temperatureRangeData, nil
+}
+
+type MosfetStatusData struct {
+	Mode              string
+	ChargingMosfet    bool
+	DischargingMosfet bool
+	CapacityAh        float32
 }
 
 // Get MOSFET charging/discharging status
-func (bms *DalyBMS) GetMosfetStatus() (map[string]interface{}, error) {
+func (bms *DalyBMSIstance) GetMosfetStatus() (*MosfetStatusData, error) {
 	response, err := bms.sendReadRequest("93", "", 1, false)
 	if err != nil {
 		return nil, err
@@ -202,16 +245,18 @@ func (bms *DalyBMS) GetMosfetStatus() (map[string]interface{}, error) {
 		modeText = "charging"
 	}
 
-	return map[string]interface{}{
-		"mode":               modeText,
-		"charging_mosfet":    raw.ChargingMosfet,
-		"discharging_mosfet": raw.DischargingMosfet,
-		"capacity_ah":        float64(raw.CapacityRaw) / 1000.0,
-	}, nil
+	mosfetStatusData := &MosfetStatusData{
+		Mode:              modeText,
+		ChargingMosfet:    raw.ChargingMosfet,
+		DischargingMosfet: raw.DischargingMosfet,
+		CapacityAh:        float32(raw.CapacityRaw) / 1000.0,
+	}
+
+	return mosfetStatusData, nil
 }
 
-// Get individual cell voltages
-func (bms *DalyBMS) GetCellVoltages() (map[int]float64, error) {
+// Get individual cell voltages in a map[cellIndex] = voltage
+func (bms *DalyBMSIstance) GetCellVoltages() (map[int]float64, error) {
 	maxResp, err := bms.calculateNumberOfResponses("cells", 3)
 	if err != nil {
 		return nil, err
@@ -248,8 +293,8 @@ func (bms *DalyBMS) GetCellVoltages() (map[int]float64, error) {
 	return parsedValues, nil
 }
 
-// Get temperature sensor values
-func (bms *DalyBMS) GetTemperatures() (map[int]float64, error) {
+// Get temperature sensor values in a map[sensorIndex] = temperature
+func (bms *DalyBMSIstance) GetTemperatures() (map[int]float64, error) {
 	maxResp, err := bms.calculateNumberOfResponses("temperature_sensors", 7)
 	if err != nil {
 		return nil, err
@@ -285,8 +330,8 @@ func (bms *DalyBMS) GetTemperatures() (map[int]float64, error) {
 	return parsedValues, nil
 }
 
-// Get cell balancing (on/off) for each cell
-func (bms *DalyBMS) GetBalancingStatus() (map[int]bool, error) {
+// Get cell balancing (on/off) for each cell in a map[cellIndex] = isBalancing
+func (bms *DalyBMSIstance) GetBalancingStatus() (map[int]bool, error) {
 	response, err := bms.sendReadRequest("97", "", 1, false)
 	if err != nil {
 		return nil, err
@@ -329,7 +374,7 @@ func (bms *DalyBMS) GetBalancingStatus() (map[int]bool, error) {
 }
 
 // Get errors from the BMS
-func (bms *DalyBMS) GetErrors() ([]string, error) {
+func (bms *DalyBMSIstance) GetErrors() ([]string, error) {
 	response, err := bms.sendReadRequest("98", "", 1, false)
 	if err != nil {
 		return nil, err
@@ -382,8 +427,20 @@ func (bms *DalyBMS) GetErrors() ([]string, error) {
 	return foundErrors, nil
 }
 
+type AllBMSData struct {
+	SOC              *SOCData
+	CellVoltageRange *CellVoltageRangeData
+	TemperatureRange *TemperatureRangeData
+	MosfetStatus     *MosfetStatusData
+	Status           *StatusData
+	CellVoltages     map[int]float64
+	Temperatures     map[int]float64
+	BalancingStatus  map[int]bool
+	Errors           []string
+}
+
 // Get all data in one call
-func (bms *DalyBMS) FetchAllData() (map[string]interface{}, error) {
+func (bms *DalyBMSIstance) GetAllData() (*AllBMSData, error) {
 	socData, socErr := bms.GetSOC()
 	if socErr != nil {
 		return nil, socErr
@@ -429,20 +486,23 @@ func (bms *DalyBMS) FetchAllData() (map[string]interface{}, error) {
 		return nil, errorsErr
 	}
 
-	return map[string]interface{}{
-		"soc":                socData,
-		"cell_voltage_range": voltageRangeData,
-		"temperature_range":  temperatureRangeData,
-		"mosfet_status":      mosfetStatusData,
-		"status":             statusData,
-		"cell_voltages":      individualCellVoltages,
-		"temperatures":       temperatureSensors,
-		"balancing_status":   balancingInfo,
-		"errors":             errorsList,
-	}, nil
+	allBmsData := &AllBMSData{
+		SOC:              socData,
+		CellVoltageRange: voltageRangeData,
+		TemperatureRange: temperatureRangeData,
+		MosfetStatus:     mosfetStatusData,
+		Status:           statusData,
+		CellVoltages:     individualCellVoltages,
+		Temperatures:     temperatureSensors,
+		BalancingStatus:  balancingInfo,
+		Errors:           errorsList,
+	}
+
+	return allBmsData, nil
 }
 
-func (bms *DalyBMS) EnableChargeMosfet(isOn bool) error {
+// Enable charge MOSFET switch (if on, the BMS will allow charging)
+func (bms *DalyBMSIstance) EnableChargeMosfet(isOn bool) error {
 	extraBytesHex := "00"
 	if isOn {
 		extraBytesHex = "01"
@@ -459,7 +519,8 @@ func (bms *DalyBMS) EnableChargeMosfet(isOn bool) error {
 	return nil
 }
 
-func (bms *DalyBMS) EnableDischargeMosfet(isOn bool) error {
+// Enable discharge MOSFET switch (if on, the BMS will allow discharging)
+func (bms *DalyBMSIstance) EnableDischargeMosfet(isOn bool) error {
 	extraBytesHex := "00"
 	if isOn {
 		extraBytesHex = "01"
@@ -477,7 +538,7 @@ func (bms *DalyBMS) EnableDischargeMosfet(isOn bool) error {
 }
 
 // Set SoC percentage (0..100)
-func (bms *DalyBMS) SetSOC(socPercent float64) error {
+func (bms *DalyBMSIstance) SetSOC(socPercent float64) error {
 	rawValue := int(socPercent * 10.0)
 	if rawValue > 1000 {
 		rawValue = 1000
@@ -501,7 +562,7 @@ func (bms *DalyBMS) SetSOC(socPercent float64) error {
 }
 
 // Restart device. The effect may depend on device firmware.
-func (bms *DalyBMS) Restart() error {
+func (bms *DalyBMSIstance) Restart() error {
 	response, err := bms.readSerialResponse("00", "", 1, false)
 	if err != nil {
 		return err

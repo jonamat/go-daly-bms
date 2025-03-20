@@ -11,13 +11,14 @@ import (
 
 // calculateNumberOfResponses determines how many 13-byte response frames we expect
 // for given data (like cells or temperature sensors).
-func (bms *DalyBMS) calculateNumberOfResponses(statusField string, itemCountPerFrame int) (int, error) {
+func (bms *DalyBMSIstance) calculateNumberOfResponses(statusField string, itemCountPerFrame int) (int, error) {
 	if bms.latestStatus == nil {
 		return 0, fmt.Errorf("getStatus must be called before retrieving %s", statusField)
 	}
 
 	switch statusField {
 	case "cells":
+		// ! bt not supported
 		if bms.address == 8 {
 			// Bluetooth returns all frames up to 16
 			return 16, nil
@@ -25,6 +26,7 @@ func (bms *DalyBMS) calculateNumberOfResponses(statusField string, itemCountPerF
 		return int(math.Ceil(float64(bms.latestStatus.NumberOfCells) / float64(itemCountPerFrame))), nil
 
 	case "temperature_sensors":
+		// ! bt not supported
 		if bms.address == 8 {
 			// Bluetooth returns up to 3 frames
 			return 3, nil
@@ -36,7 +38,7 @@ func (bms *DalyBMS) calculateNumberOfResponses(statusField string, itemCountPerF
 }
 
 // splitFramesForData is a helper that unpacks multi-frame responses for cell or temperature data.
-func (bms *DalyBMS) splitFramesForData(
+func (bms *DalyBMSIstance) splitFramesForData(
 	frames [][]byte,
 	statusField string,
 	itemsPerFrame int,
@@ -100,7 +102,7 @@ func (bms *DalyBMS) splitFramesForData(
 
 // sendReadRequest is a higher-level function that retries the readSerialResponse
 // up to bms.requestRetries times.
-func (bms *DalyBMS) sendReadRequest(
+func (bms *DalyBMSIstance) sendReadRequest(
 	command string,
 	extraHexData string,
 	maxResponses int,
@@ -134,7 +136,7 @@ func (bms *DalyBMS) sendReadRequest(
 // number of 13-byte responses. If returnList is false, and we only get one response,
 // we return the raw 8 data bytes. If multiple frames are returned or returnList=true,
 // we return a slice of slices.
-func (bms *DalyBMS) readSerialResponse(
+func (bms *DalyBMSIstance) readSerialResponse(
 	command string,
 	extraHexData string,
 	maxResponses int,
@@ -217,7 +219,7 @@ func (bms *DalyBMS) readSerialResponse(
 
 // buildRequestFrame constructs the hex message plus CRC for a command like "90" with optional extra data.
 // The result is a 13-byte packet: 12 bytes (in hex form) + 1-byte CRC.
-func (bms *DalyBMS) buildRequestFrame(command string, extraHex string) ([]byte, error) {
+func (bms *DalyBMSIstance) buildRequestFrame(command string, extraHex string) ([]byte, error) {
 	// Example: "a5[address]0[cmd]08[extra]" => pad to 24 hex digits => then 1-byte CRC.
 	// e.g. "a5409008000000000000000000" + CRC => 13 total bytes.
 
@@ -239,7 +241,7 @@ func (bms *DalyBMS) buildRequestFrame(command string, extraHex string) ([]byte, 
 }
 
 // drainReadBuffer attempts to read any leftover data so it doesn't mix with new responses.
-func (bms *DalyBMS) drainReadBuffer() error {
+func (bms *DalyBMSIstance) drainReadBuffer() error {
 	if bms.serialPort == nil {
 		return fmt.Errorf("drain requested but serialPort is nil")
 	}
