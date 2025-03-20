@@ -1,7 +1,7 @@
 # go-daly-bms
 
 Go porting of [python-daly-bms](https://github.com/dreadnought/python-daly-bms) library to interact with Daly BMS.
-Tested on 
+
 
 ## Installation
 
